@@ -337,6 +337,14 @@ public final class XcodeInstaller {
 
     func loginIfNeeded(withUsername providedUsername: String? = nil, shouldPromptForPassword: Bool = false) -> Promise<Void> {
         return firstly { () -> Promise<Void> in
+            Promise { promise in
+                let possibleUsername = providedUsername ?? self.findUsername()
+                // don't want this to fail
+                try? AppleAPI.Current.network.session.configuration.httpCookieStorage?.loadFastlaneCookies(for: possibleUsername)
+                promise.fulfill(())
+            }
+        }
+        .then { () -> Promise<Void> in
             return Current.network.validateSession()
         }
         // Don't have a valid session, so we'll need to log in

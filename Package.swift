@@ -22,13 +22,14 @@ let package = Package(
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", .upToNextMinor(from: "3.2.0")),
         .package(name: "XcodeReleases", url: "https://github.com/xcodereleases/data", .revision("b47228c688b608e34b3b84079ab6052a24c7a981")),
         .package(url: "https://github.com/onevcat/Rainbow.git", .upToNextMinor(from: "3.2.0")),
+        .package(url: "https://github.com/JohnSundell/ShellOut.git", from: "2.3.0"),
     ],
     targets: [
         .target(
             name: "xcodes",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"), 
-                "XcodesKit"
+                "XcodesKit",
             ]),
         .testTarget(
             name: "xcodesTests",
@@ -49,6 +50,10 @@ let package = Package(
                 "Version", 
                 .product(name: "XCModel", package: "XcodeReleases"),
                 "Rainbow",
+                "ShellOut",
+            ],
+            resources: [
+                .copy("Resources")
             ]),
         .testTarget(
             name: "XcodesKitTests",
