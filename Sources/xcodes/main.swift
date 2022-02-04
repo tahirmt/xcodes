@@ -146,6 +146,9 @@ struct Xcodes: ParsableCommand {
     }
     
     struct Install: ParsableCommand {
+        enum InstallError: Error {
+            case notAlreadyInstalled
+        }
         static var configuration = CommandConfiguration(
             abstract: "Download and install a specific version of Xcode",
             discussion: """
@@ -182,6 +185,15 @@ struct Xcodes: ParsableCommand {
         
         @Flag(help: "Don't use aria2 to download Xcode, even if its available.")
         var noAria2: Bool = false
+
+        @Flag(help: "Select the installed xcode version after installation.")
+        var select: Bool = false
+
+        @Flag(help: "Whether to update the list before installing")
+        var update: Bool = false
+
+        @ArgumentParser.Flag(name: [.customShort("p"), .customLong("print-path")], help: "Print the path of the selected Xcode")
+        var print: Bool = false
         
         @Flag(help: "Use the experimental unxip functionality. May speed up unarchiving by up to 2-3x.")
         var experimentalUnxip: Bool = false
@@ -220,17 +232,60 @@ struct Xcodes: ParsableCommand {
             }
             
             let destination = getDirectory(possibleDirectory: directory)
-            
-            installer.install(installation, dataSource: globalDataSource.dataSource, downloader: downloader, destination: destination, experimentalUnxip: experimentalUnxip)
-                .done { Install.exit() }
-                .catch { error in
-                    Install.processDownloadOrInstall(error: error)
+
+            if select == false {
+                // install normally
+                installer.install(installation, dataSource: globalDataSource.dataSource, downloader: downloader, destination: destination, experimentalUnxip: experimentalUnxip)
+                    .done { Install.exit() }
+                    .catch { error in
+                        Install.processDownloadOrInstall(error: error)
+                    }
+            } else {
+                // check if the version is already installed and try to select it
+                firstly { () -> Promise<Void> in
+                    if case .version(let version) = installation {
+                        return selectXcode(shouldPrint: print, pathOrVersion: version, directory: destination, fallbackToInteractive: false)
+                    } else {
+                        return Promise { _ in
+                            throw InstallError.notAlreadyInstalled
+                        }
+                    }
                 }
-            
+                .done { Install.exit() } // successfully selected
+                .catch { error in
+                    // select failed. Xcode must not be installed.
+                    firstly { () -> Promise<InstalledXcode> in
+                        // update the list before installing only for version type because the other types already update internally
+                        if update, case .version = installation {
+                            Current.logging.log("Updating...")
+                            return xcodeList.update(dataSource: globalDataSource.dataSource)
+                                .then { _ -> Promise<InstalledXcode> in
+                                    installer.installWithoutLogging(installation, dataSource: globalDataSource.dataSource, downloader: downloader, destination: destination)
+                                }
+                        } else {
+                            // install
+                            return installer.installWithoutLogging(installation, dataSource: globalDataSource.dataSource, downloader: downloader, destination: destination)
+                        }
+                    }
+                    .then { xcode -> Promise<Void> in
+                        Current.logging.log("\nXcode \(xcode.version.descriptionWithoutBuildMetadata) has been installed to \(xcode.path.string)".green)
+
+                        // Install was successful, now select it
+                        return selectXcode(shouldPrint: print, pathOrVersion: xcode.path.string, directory: destination, fallbackToInteractive: false)
+                    }
+                    .done {
+                        Install.exit()
+                    }
+                    .catch { error in
+                        Install.processDownloadOrInstall(error: error)
+                    }
+                }
+            }
+
             RunLoop.current.run()
         }
     }
-    
+
     struct Installed: ParsableCommand {
         static var configuration = CommandConfiguration(
             abstract: "List the versions of Xcode that are installed"
