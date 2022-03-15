@@ -260,11 +260,11 @@ struct Xcodes: ParsableCommand {
                             Current.logging.log("Updating...")
                             return xcodeList.update(dataSource: globalDataSource.dataSource)
                                 .then { _ -> Promise<InstalledXcode> in
-                                    installer.installWithoutLogging(installation, dataSource: globalDataSource.dataSource, downloader: downloader, destination: destination)
+                                    installer.installWithoutLogging(installation, dataSource: globalDataSource.dataSource, downloader: downloader, destination: destination, experimentalUnxip: experimentalUnxip)
                                 }
                         } else {
                             // install
-                            return installer.installWithoutLogging(installation, dataSource: globalDataSource.dataSource, downloader: downloader, destination: destination)
+                            return installer.installWithoutLogging(installation, dataSource: globalDataSource.dataSource, downloader: downloader, destination: destination, experimentalUnxip: experimentalUnxip)
                         }
                     }
                     .then { xcode -> Promise<Void> in
